@@ -24,7 +24,7 @@ class ReLUs(Activation):
 
 # Deep Deterministc Policy Gradient Agent
 class Actor:
-    def __init__(self, state_size=28, action_size=2, learning_rate=0.001, tau=0.001, sess=None, batch_size=32, action_max=[1000, 2]):
+    def __init__(self, state_size=3, action_size=2, learning_rate=0.00005, tau=0.001, sess=None, batch_size=512, action_max=[1000, 2]):
         self.state_size = state_size        # state size
         self.action_size = action_size      # action size
         self.learning_rate = learning_rate  # learning rate for actor
@@ -38,12 +38,13 @@ class Actor:
         self.model, self.weights, self.input_states = self.create_network()   # create actor network
         self.target_model, self.target_action, self.target_state = self.create_network()    # create target network
         # self.adam_optimizer = self.optimizer()      # init adam optimizer
-        self.sess = tf.Session()
+        self.sess = sess
         #tf.compat.v1.disable_eager_execution()
         self.action_gradient = tf.placeholder(tf.float32, [None, self.action_size])
         self.params_grad = tf.gradients(self.model.output, self.model.trainable_weights, -self.action_gradient)
         self.grads = zip(self.params_grad, self.model.trainable_weights)
         self.optimize = tf.train.AdamOptimizer(self.learning_rate).apply_gradients(self.grads)
+        # self.optimize = tf.train.GradientDescentOptimizer(self.learning_rate).apply_gradients(self.grads)
         self.sess.run(tf.initialize_all_variables())
 
     def create_network(self):
@@ -57,10 +58,14 @@ class Actor:
         # h1 = Dense(32, activation='linear')(b1)  # 64     300   128
         # h2 = Dense(32, activation='relu')(h1)  # 64     300     128
         # h3 = Dense(32, activation='relu')(h2)  # 64     300    128
-        h4 = Dense(3 * self.state_size, activation='relu')(b1)  # 64     300   128           # hidden layers
-        h5 = Dense(3 * self.state_size, activation='relu')(h4)  # 64     300     128
-        h6 = Dense(3 * self.state_size, activation='relu')(h5)  # 64     300    128
-        h7 = Dense(5 * self.state_size, activation='relu')(h6)  # 64     300    128
+        #h4 = Dense(3 * self.state_size, activation='relu')(b1)  # 64     300   128           # hidden layers
+        #h5 = Dense(3 * self.state_size, activation='relu')(h4)  # 64     300     128
+        #h6 = Dense(3 * self.state_size, activation='relu')(h5)  # 64     300    128
+        #h7 = Dense(5 * self.state_size, activation='relu')(h6)  # 64     300    128
+        h4 = Dense(16, activation='relu')(b1)  # 64     300   128           # hidden layers
+        h5 = Dense(16, activation='relu')(h4)  # 64     300     128
+        h6 = Dense(16, activation='relu')(h5)  # 64     300    128
+        h7 = Dense(64, activation='relu')(h6)  # 64     300    128
         # h1 = Dense(32, activation='linear')(b1)  # 64     300   128
         # h2 = Dense(32, activation='relu')(h1)  # 64     300     128
         # h3 = Dense(32, activation='relu')(h2)  # 64     300    128
@@ -127,7 +132,9 @@ class Actor:
         :param state:
         :return:
         '''
+        #print('actor model predict:', self.model.predict(state))
         return self.model.predict(state)
+
 
     def target_predict(self, input):
         '''
@@ -138,6 +145,7 @@ class Actor:
         #print('act target predict')
         input = np.asarray(input).reshape((self.batch_size, self.state_size))
         #print(input)
+        #print('actor target predict:', self.model.predict(input))
         return self.target_model.predict(input)
 
     # def train(self, states, grads):
@@ -173,7 +181,7 @@ class Actor:
         save weights of actor in path
         :param path:
         '''
-        self.model.save_weights(path + '_weights_actor_h5')
+        self.model.save_weights(path + '_weights_actor.h5')
 
     def load_weigths(self, path):
         '''

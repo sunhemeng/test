@@ -12,7 +12,7 @@ from Sim_Optimal_Offloading_V2 import Optimal_Offloading
 
 
 class Simulation:
-    def __init__(self, number_of_servers=3, number_of_users=1, historic_time=4, snr_set=20, csi=0, channel=0.9):
+    def __init__(self, number_of_servers=3, number_of_users=1, historic_time=1, snr_set=10, csi=1, channel=1):
         # define Simulation parameters
         self.S = number_of_servers  # number of servers
         self.N = number_of_users  # number of users
@@ -45,7 +45,8 @@ class Simulation:
         self.lam = 3 * 10 ** 6  # poisson arriving rate
         self.xi = -0.0214  # shape parameter
         self.sigma = 3.4955 * 10 ** 6  # scale parameter
-        self.d = 2.0384 * 10 ** 7  # threshold
+        #self.d = 2.0384 * 10 ** 7  # threshold
+        self.d = 5.7 * 10 ** 6  # threshold
         self.T = 0.025  # delay tolerance in s 0.025
         self.eps_max = 0.001
         self.threshold_computation = 0.999  # computation threshold
@@ -212,6 +213,7 @@ class Simulation:
         '''
         SNR = []
         for i in range(self.S):          # compute new SNR for every channel
+            #h_bar = complex(np.random.randn(), np.random.randn()) / np.sqrt(2)
             h_bar = complex(np.random.randn(), np.random.randn()) / np.sqrt(2)
             hdl = self.p * self.h[i] + (np.sqrt(1 - np.square(self.p)) * h_bar)
             SNR = np.append(SNR, self.SNR_avg[i] * abs(np.square(hdl)))
@@ -249,7 +251,8 @@ class Simulation:
         #     self.reward = -1
         #     return
 
-        self.reward = - np.log10(e)/100
+        #self.reward = - np.log10(e)/100
+        self.reward = - np.log10(e)
 
     def Assign_Cores(self, actions):
         '''
@@ -280,9 +283,9 @@ class Simulation:
 # loop_start = 6
 # loop_end = 10
 
-W = 4
-SNR = 20
-OU_theta = 0.3
+W = 1
+SNR = 10
+OU_theta = 0.5
 OU_sigma = 0.8
 df = 0.0
 lr = 0.0001
@@ -290,33 +293,33 @@ lr = 0.0001
 # for r in range(loop_start, loop_end + 1):
     # Initialize Simulation Environment
 sim_env = Simulation(number_of_servers=3, number_of_users=1, historic_time=W,
-                         snr_set=SNR, csi=0, channel=0.9)  # number_of_server = 3, number_of_users = 1, historic time slots, avgSNR
+                         snr_set=SNR, csi=1, channel=1)  # number_of_server = 3, number_of_users = 1, historic time slots, avgSNR
 
-    # episodes = 100
+    # episodes = 400
     # training = 1000
     # testing = 1000
     # testing_comps = 5000
-episodes = 50
-training = 100
-testing = 100
-testing_comps = 500
+episodes = 200
+training = 500
+testing = 500
+testing_comps = 2500
 
 success_ratio = []
 # Q-Network
 state_size = ((sim_env.features-sim_env.CSI) * (sim_env.W - 1 + sim_env.CSI) * sim_env.S)
 action_size = 2
-batch_size = 128
+batch_size = 512
 
 QN = DDPGAgent(state_size=state_size, action_size=2, gamma=df, learning_rate_actor=lr/2,
                learning_rate_critic=lr, tau=0.001, batch_size=batch_size, action_max=[1, 1])
 
 # Noise
 mu = np.concatenate(([0], [0]))
-theta = np.concatenate(([OU_theta - 0.2], [OU_theta]))
-max_sigma = np.concatenate(([OU_sigma - 0.2], [OU_sigma]))
-min_sigma = np.concatenate(([0.001], [0.001]))
+theta = np.concatenate(([OU_theta], [OU_theta]))
+max_sigma = np.concatenate(([OU_sigma], [OU_sigma]))
+min_sigma = np.concatenate(([0.1], [0.05]))
 action_max = [1] * 2
-action_min = np.concatenate(([0.01], [0]))
+action_min = np.concatenate(([0.1], [0]))
 Noise = OUNoise(action_space=2, mu=mu, theta=theta, max_sigma=max_sigma, min_sigma=min_sigma,
                 action_max=action_max, action_min=action_min)
 
@@ -330,15 +333,11 @@ for e in range(episodes):
     for k in range(training):
         states = np.reshape(states, [1, state_size])
         print('states:', states)
-        # print('states:', states)
-        #action = QN.policy_action(states)
-        print('#########train_cycle start############')
+        print('#########train_cycle start############ episode %d cycle %d' % (e, k))
         action = QN.policy_action(states)
         print('act_before:', action)
-        # print(action)
         action = Noise.get_action(action)
         print('act_after:', action)
-        # print(action)
         next_state, rewards, overall_err = sim_env.Assign_Cores(action)
         print('reward:', rewards)
         print('error:', overall_err)
@@ -356,7 +355,7 @@ for e in range(episodes):
         states = np.reshape(states, [1, state_size])
         print('states:', states)
         action = np.clip(QN.policy_action(states), [0.001, 0], [1, 1])
-        print('##################test#######################')
+        print('##################test####################### episode %d cycle %d' % (e, u))
         print('action:', action)
         next_state, rewards, overall_err = sim_env.Assign_Cores(action)
         print('reward:', rewards)
@@ -392,7 +391,7 @@ plt.figure(0)
 plt.plot(QN.critic_loss_a, '-g.', markersize=1)
 plt.axis([0, episodes*training, 0, 1.1])
 plt.xlabel('Training')
-plt.ylabel('-log10(eps)')
+plt.ylabel('loss')
 plt.title('loss')
 plt.yscale('symlog', nonposy='clip', linthreshy=10**-8)
 plt.grid()

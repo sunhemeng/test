@@ -19,7 +19,7 @@ history = History()
 
 # Deep Deterministc Policy Gradient Agent
 class DDPGAgent:
-    def __init__(self, state_size=28, action_size=2, gamma=0.9, learning_rate_actor=0.0001, learning_rate_critic=0.01, tau=0.001, action_max=[1000, 2], batch_size=32):
+    def __init__(self, state_size=3, action_size=2, gamma=0.0, learning_rate_actor=0.00005, learning_rate_critic=0.0001, tau=0.001, action_max=[1000, 2], batch_size=512):
         self.state_size = state_size
         self.action_size = action_size
         self.action_max = action_max
@@ -53,6 +53,8 @@ class DDPGAgent:
         '''
         return self.actor.predict(state)[0]
 
+
+
     def replay(self, batch_size):
         minibatch = random.sample(self.memory, batch_size)
         states = np.asarray([e[0] for e in minibatch])
@@ -60,13 +62,17 @@ class DDPGAgent:
         rewards = np.asarray([e[2] for e in minibatch])
         next_states = np.asarray([e[3] for e in minibatch])
 
+
+
         states = np.asarray(states).reshape(batch_size, self.state_size)
         actions = np.asarray(actions).reshape(batch_size, self.action_size)
         rewards = np.asarray(rewards).reshape(batch_size, 1)
         next_states = np.asarray(next_states).reshape(batch_size, self.state_size)
         tar_pre = self.actor.target_predict(next_states)
-        Qvals = self.critic.target_predict(next_states, tar_pre)
-        Q_primes = rewards + (self.gamma * Qvals)           # Bellman equation
+        Qvals = self.critic.target_predict(next_states, tar_pre)   # q prime
+        #print('q:', Qvals)
+
+        Q_primes = rewards + (self.gamma * Qvals)           # Bellman equation, y
         self.update_models(states, actions, Q_primes)
 
     def update_models(self, states, actions, critic_target):
@@ -78,17 +84,18 @@ class DDPGAgent:
         :return:
         '''
         loss = self.critic.train_on_batch(states, actions, critic_target)      # Train Critic
+        print('loss:', loss)
         self.critic_loss_a.append(loss)
         # loss = np.sum(-np.log10(loss), axis=0)
         act = self.actor.predict(states)                # Q Value Gradient under Current Policy
+        #print('act:', act)
         grads = self.critic.gradients(states, act)          # actor loss
-
+        # print('grads:', grads)
         self.grad_avg += np.sum(np.log10(np.absolute(grads)), axis=0)/self.batch_size
         self.grad_a = np.append(self.grad_a, np.sum(np.absolute(grads), axis=0)/self.batch_size, axis=0)
-        #print('grad_a:', self.grad_a)
+        # print('grad_a:', self.grad_a)
 
         self.actor.train_2(states, grads.reshape((-1, self.action_size)))               # Train actor
-
         self.actor.transfer_to_actor_model()        # Transfer weights to target networks at rate tau
         self.critic.transfer_to_critic_model()
 

@@ -97,9 +97,10 @@ class Simulation:
 
         # Initialize state, concatenate snr + previous tasks sizes dependent on knowledge of environment
         if self.CSI == 1:       # perfect CSI
-            self.state = np.log10(self.SNR) / 10    # initialize state
+            # self.state = np.log10(self.SNR) / 10    # initialize state
+            self.state = np.log10(self.SNR)
         else:                   # outdated CSI
-            self.state = np.concatenate((np.log10(self.SNR[:-1])/10, self.tasks_prev/(10**9)), axis=0)    # initialize state
+            self.state = np.concatenate((np.log10(self.SNR[:-1]), self.tasks_prev/(10**9)), axis=0)    # initialize state
 
         print(self.state)
 
@@ -136,9 +137,10 @@ class Simulation:
 
         ### Initialize state, concatenate snr + previous tasks sizes ###
         if self.CSI == 1:       # perfect CSI
-            self.state = np.log10(self.SNR) / 10
+            # self.state = np.log10(self.SNR) / 10
+            self.state = np.log10(self.SNR)
         else:                   # outdated CSI
-            self.state = np.concatenate((np.log10(self.SNR[:-1])/10, self.tasks_prev/(10**9)), axis=0)
+            self.state = np.concatenate((np.log10(self.SNR[:-1]), self.tasks_prev/(10**9)), axis=0)
 
     def channel_type_name(self):
 
@@ -278,9 +280,11 @@ class Simulation:
 
         # division of 10 is for regulating input values in same range (can be changed)
         if self.CSI == 1:       # perfect CSI
-            state = np.log10(self.SNR) / 10
+            # state = np.log10(self.SNR) / 10
+            state = np.log10(self.SNR)
+
         else:                   # outdated CSI
-            state = np.concatenate((np.log10(self.SNR[:-1])/10, self.tasks_prev/(10**9)), axis=0)
+            state = np.concatenate((np.log10(self.SNR[:-1]), self.tasks_prev/(10**9)), axis=0)
         # state = np.concatenate((np.log10(self.SNR[:-1])/10, self.tasks_prev/(10**9)), axis=0)
         #print(state)
         return state
@@ -301,7 +305,8 @@ class Simulation:
         #     self.reward = -1
         #     return
 
-        self.reward = - np.log10(e)/100     # use 100 as factor (can be changed to best outcome)
+        self.reward = - np.log10(e)    # use 100 as factor (can be changed to best outcome)
+
 
     def Assign_Cores(self, actions, count, train):
         '''
@@ -332,96 +337,114 @@ class Simulation:
         #print(self.state)
         return self.state, self.reward, total_error
 
-num_of_servers_a = [2, 3, 4]      # set number of servers
+#num_of_servers_a = [2, 3, 4]      # set number of servers
 hist_timeslots = 4          # number of historical timeslots
 avg_SNR = 10                # avg SNR
 #rho_a = [0.2, 0.6]
 # rho = 0.9
-num_of_servers = 2
+num_of_servers = 3
 
-for r in num_of_servers_a:
+#for r in num_of_servers_a:
     # rnd_channel = np.random.seed(22363)
     # rand = random.seed(1444)
     # Initialize Simulation Environment
-    sim_env = Simulation(number_of_servers=r, number_of_users=1, historic_time=hist_timeslots,
-                         snr_set=avg_SNR, csi=0, channel=0.9)  # number_of_server = 3, number_of_users = 1, historic time slots, avgSNR, perfCSI?(yes=0, no=1), channel correlation
+sim_env = Simulation(number_of_servers=3, number_of_users=1, historic_time=hist_timeslots,
+                     snr_set=avg_SNR, csi=0, channel=0.9)  # number_of_server = 3, number_of_users = 1, historic time slots, avgSNR, perfCSI?(yes=0, no=1), channel correlation
 
-    # episodes = 400          # number of episodes
-    # training = 1000         # training time for each episode
-    # testing = 1000          # testing time for each episode
-    episodes = 50  # number of episodes
-    training = 100  # training time for each episode
-    testing = 100
+# episodes = 400          # number of episodes
+# training = 1000         # training time for each episode
+# testing = 1000          # testing time for each episode
+episodes = 100  # number of episodes
+training = 1000  # training time for each episode
+testing = 1000
 
-    # Q-Network
-    state_size = ((sim_env.features-sim_env.CSI) * (sim_env.W - 1 + sim_env.CSI) * sim_env.S)       # Calculate state size
-    action_size = 2             # set action size ( 2 for blocklength and workload index)
-    batch_size = 512            # set batch size
-       
-     # initialize DDPG agent and noise process, set decay factor(gamma), learning rates, tau(soft copy factor), batch size
-    QN = DDPGAgent(state_size=state_size, action_size=2, gamma=0.0, learning_rate_actor=0.00005, learning_rate_critic=0.0001, tau=0.001, batch_size=batch_size, action_max=[1, 1])
-    #  state_size, action size, discount factor(gamma), learning_rate_actor, learning_rate_critic, soft_copy factor(tau), batch size, maximum value for actions
-    # set decay_period in OUNoise module directly
-    Noise = OUNoise(action_space=action_size,  mu=np.asarray([0.0, 0.0]), theta=np.asarray([0.5, 0.5]), max_sigma=np.asarray([0.8, 0.8]), min_sigma=np.asarray([0.1, 0.05]), action_max=[1, 1], action_min=[0.001, 0])
-    # action_size, mean reversion level(mu), mean reversion speed(theta), random factor influence (max and min), maximum action value (1,1), minimum action value
+# Q-Network
+state_size = ((sim_env.features-sim_env.CSI) * (sim_env.W - 1 + sim_env.CSI) * sim_env.S)       # Calculate state size
+action_size = 2             # set action size ( 2 for blocklength and workload index)
+batch_size = 256            # set batch size
 
-    error_avg = []      # declare avg error array
-    error = []          # declare absolute error array
-    states = sim_env.state
-    ee = 0
-    for e in range(episodes):
-        sim_env.reset()
-        for k in range(training):
-            train = 1
-            states = np.reshape(states, [1, state_size])        # reshape state array to vector for network
-            action = QN.policy_action(states)                   # decide on action based on state
-            action = Noise.get_action(action)                   # add noise to action
-            next_state, rewards, overall_err = sim_env.Assign_Cores(action, k, train)    # give action to environment and return next state, reward and error
-            ee += overall_err
-            next_state = np.reshape(next_state, [1, state_size])            # reshape next state
-            QN.remember(states, action, rewards, next_state)                # save state in replay memory
-            states = next_state                         # state = next state
-            if len(QN.memory) > batch_size:             #if memory is larger than batch size then train
-                QN.replay(batch_size)
+ # initialize DDPG agent and noise process, set decay factor(gamma), learning rates, tau(soft copy factor), batch size
+QN = DDPGAgent(state_size=state_size, action_size=2, gamma=0.0, learning_rate_actor=0.00005, learning_rate_critic=0.0001, tau=0.001, batch_size=batch_size, action_max=[1, 1])
+#  state_size, action size, discount factor(gamma), learning_rate_actor, learning_rate_critic, soft_copy factor(tau), batch size, maximum value for actions
+# set decay_period in OUNoise module directly
+Noise = OUNoise(action_space=action_size,  mu=np.asarray([0.0, 0.0]), theta=np.asarray([0.5, 0.5]), max_sigma=np.asarray([0.8, 0.8]), min_sigma=np.asarray([0.1, 0.05]), action_max=[1, 1], action_min=[0.001, 0])
+# action_size, mean reversion level(mu), mean reversion speed(theta), random factor influence (max and min), maximum action value (1,1), minimum action value
 
-        print(ee/training)
-        QN.grad_avg = 0
-        #print(sim_env.eps_max)
-        sim_env.reset()
-        for u in range(testing):
-            train = 0           # no train => fixed channel sequence in environment
-            states = np.reshape(states, [1, state_size])        # reshape state array to vector for network
-            action = np.clip(QN.policy_action(states), [0.001, 0], [1, 1])      # decide on action based on state
-            # print('##################test#######################')
-            print('action_S{}:'.format(sim_env.S), action)
-            next_state, rewards, overall_err = sim_env.Assign_Cores(action, u, train)   # give action to environment and return next state, reward and error
-            # print('reward:', rewards)
-            # print('error:', overall_err)
-            # print(rewards)
-            error = np.append(error, overall_err)               # add error to array
-            next_state = np.reshape(next_state, [1, state_size])        # reshape next state
-            states = next_state             # state = next state
-        QN.grad_avg = 0
-        print(e)
-        print(sim_env.error/testing)
-        error_avg = np.append(error_avg, np.power(10, -sim_env.error / testing))        # save average error
-        # print('Nach Test:', sim_env.SNR)
+error_avg = []      # declare avg error array
+error = []          # declare absolute error array
+states = sim_env.state
+ee = 0
+for e in range(episodes):
+    sim_env.reset()
+    for k in range(training):
+        train = 1
+        states = np.reshape(states, [1, state_size])        # reshape state array to vector for network
+        print('states:', states)
+        print('#########train_cycle start############ episode %d cycle %d' % (e, k))
+        action = QN.policy_action(states)                   # decide on action based on state
+        print('act_before:', action)
+        action = Noise.get_action(action)                   # add noise to action
+        print('act_after:', action)
+        next_state, rewards, overall_err = sim_env.Assign_Cores(action, k, train)    # give action to environment and return next state, reward and error
+        print('reward:', rewards)
+        print('error:', overall_err)
+        ee += overall_err
+        next_state = np.reshape(next_state, [1, state_size])            # reshape next state
+        QN.remember(states, action, rewards, next_state)                # save state in replay memory
+        states = next_state                         # state = next state
+        if len(QN.memory) > batch_size:             #if memory is larger than batch size then train
+            QN.replay(batch_size)
 
-    grad_overall = np.asarray(QN.grad_a).reshape((int(len(QN.grad_a) / QN.action_size), QN.action_size))        # reshape action gradient vector
-    dir = sim_env.channel_type
-    # set parameter values for saving data
-    parameters = '_DDPG_S{}_rho{}_SNR{}_PS{}_lr{}_df{}_W{}_sigOU{}_thetaOU{}_Critic_V2'.format(sim_env.S, sim_env.p, sim_env.SNR_avg[0], sim_env.pi, QN.learning_rate_actor,
-                    QN.gamma, sim_env.W, Noise.max_sigma[0], Noise.theta[0])
-    # save Average Error
-    np.savetxt(dir + '_Error' + parameters + '.csv', np.transpose(error_avg), header='Error[sum(-log10(e))]',
-               fmt='0%30.28f')
-    # Save Absolute Error
-    np.savetxt(dir + '_AbsError' + parameters + '.csv', np.transpose(error), header='Absolute Error of every Cycle',
-               fmt='0%30.28f')
-    # Save Action Gradient for each batch
-    np.savetxt(dir + '_AvgGradient' + parameters + '.csv', grad_overall,
-               header='Average_Gradient of every Episode', fmt='%30.28f')
-    # Save loss of critic network
-    np.savetxt(dir + '_AvgLoss_Critic' + parameters + '.csv', QN.critic_loss_a,
-               header='Average_Loss of every Training from Critic Network', fmt='%30.28f')
-    # QN.save_weights(dir + '/', parameters)
+    print(ee/training)
+    QN.grad_avg = 0
+    #print(sim_env.eps_max)
+    sim_env.reset()
+    for u in range(testing):
+        train = 0           # no train => fixed channel sequence in environment
+        states = np.reshape(states, [1, state_size])        # reshape state array to vector for network
+        action = np.clip(QN.policy_action(states), [0.001, 0], [1, 1])      # decide on action based on state
+        print('##################test####################### episode %d cycle %d' % (e, u))
+        print('action_S{}:'.format(sim_env.S), action)
+        next_state, rewards, overall_err = sim_env.Assign_Cores(action, u, train)   # give action to environment and return next state, reward and error
+        print('reward:', rewards)
+        print('error:', overall_err)
+        # print(rewards)
+        error = np.append(error, overall_err)               # add error to array
+        next_state = np.reshape(next_state, [1, state_size])        # reshape next state
+        states = next_state             # state = next state
+    QN.grad_avg = 0
+    print(e)
+    print(sim_env.error/testing)
+    error_avg = np.append(error_avg, np.power(10, -sim_env.error / testing))        # save average error
+    # print('Nach Test:', sim_env.SNR)
+
+grad_overall = np.asarray(QN.grad_a).reshape((int(len(QN.grad_a) / QN.action_size), QN.action_size))        # reshape action gradient vector
+dir = sim_env.channel_type
+# set parameter values for saving data
+parameters = '_DDPG_S{}_rho{}_SNR{}_PS{}_lr{}_df{}_W{}_sigOU{}_thetaOU{}_Critic_V2'.format(sim_env.S, sim_env.p, sim_env.SNR_avg[0], sim_env.pi, QN.learning_rate_actor,
+                QN.gamma, sim_env.W, Noise.max_sigma[0], Noise.theta[0])
+# save Average Error
+np.savetxt(dir + '_Error' + parameters + '.csv', np.transpose(error_avg), header='Error[sum(-log10(e))]',
+           fmt='0%30.28f')
+# Save Absolute Error
+np.savetxt(dir + '_AbsError' + parameters + '.csv', np.transpose(error), header='Absolute Error of every Cycle',
+           fmt='0%30.28f')
+# Save Action Gradient for each batch
+np.savetxt(dir + '_AvgGradient' + parameters + '.csv', grad_overall,
+           header='Average_Gradient of every Episode', fmt='%30.28f')
+# Save loss of critic network
+np.savetxt(dir + '_AvgLoss_Critic' + parameters + '.csv', QN.critic_loss_a,
+           header='Average_Loss of every Training from Critic Network', fmt='%30.28f')
+# QN.save_weights(dir + '/', parameters)
+
+plt.figure(0)
+plt.plot(QN.critic_loss_a, '-g.', markersize=1)
+plt.axis([0, episodes*training, 0, 1.1])
+plt.xlabel('Training')
+plt.ylabel('loss')
+plt.title('loss')
+plt.yscale('symlog', nonposy='clip', linthreshy=10**-8)
+plt.grid()
+plt.show()
+
+

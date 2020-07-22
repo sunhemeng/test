@@ -12,13 +12,13 @@ import numpy as np
 from collections import deque
 history = History()
 
-HIDDEN1_UNITS = 16
-HIDDEN2_UNITS = 32
+#HIDDEN1_UNITS = 16
+#HIDDEN2_UNITS = 32
 
 # Deep Deterministc Policy Gradient Agent
 # Critic class
 class Critic:
-    def __init__(self, state_size=28, action_size=2, learning_rate=0.001, gamma=0.001, tau=0.001, sess=None, batch_size=32):
+    def __init__(self, state_size=3, action_size=2, learning_rate=0.0001, gamma=0.0, tau=0.001, sess=None, batch_size=512):
         self.state_size = state_size        # set state size
         self.action_size = action_size      # set action size
         self.memory = deque(maxlen=5000)
@@ -31,8 +31,7 @@ class Critic:
         # self.target_model = self._build_critic_model()
         self.model, self.action_input, self.state_input = self.create_network()     # create critic network
         self.target_model, self.target_action, self.target_state = self.create_network()        # create target network
-        self.action_grads = tf.gradients(self.model.output, self.action_input)      # compute action gradients 
-        print(self.action_grads)
+        self.action_grads = tf.gradients(self.model.output, self.action_input)      # compute action gradients
         self.sess.run(tf.initialize_all_variables())           
         #self.action_grads = K.function([self.model.input[0], self.model.input[1]], K.gradients(self.model.output, [self.model.input[1]]))
 
@@ -60,8 +59,10 @@ class Critic:
         # state2 = Dense(16, activation='linear')(Bstate1)      #300     128       128   128 32
         # state3 = Dense(16, activation='relu')(state2)
         # state4 = Dense(16, activation='relu')(state3)
-        state4 = Dense(4*self.state_size, activation='relu')(Bstate1)      # hidden layer for state stream
-        state5 = Dense(4*self.state_size, activation='relu')(state4)        # 300     128       128   128 32
+        #state4 = Dense(4*self.state_size, activation='relu')(Bstate1)      # hidden layer for state stream
+        #state5 = Dense(4*self.state_size, activation='relu')(state4)        # 300     128       128   128 32
+        state4 = Dense(16, activation='relu')(Bstate1)  # hidden layer for state stream
+        state5 = Dense(16, activation='relu')(state4)
         # state2 = Dense(16, activation='linear')(S)
         # state3 = Dense(16, activation='relu')(state2)           #300   128    128  64 24        # state4 = Dense(512, activation='relu')(state3)
         # state4 = Dense(16, activation='relu')(state3)
@@ -69,8 +70,10 @@ class Critic:
         # action2 = Dense(32, activation='linear')(Baction1)           #128   128   64 4
         # action3 = Dense(32, activation='relu')(action2)           #350     128   128   128 8
         # action4 = Dense(32, activation='relu')(action3)           #350     128   128   128 8
-        action4 = Dense(5*self.state_size, activation='relu')(Baction1)           # hidden layers for action stream 
-        action5 = Dense(5*self.state_size, activation='relu')(action4)            # 128   128   64 4
+        #action4 = Dense(5*self.state_size, activation='relu')(Baction1)           # hidden layers for action stream
+        #action5 = Dense(5*self.state_size, activation='relu')(action4)            # 128   128   64 4
+        action4 = Dense(32, activation='relu')(Baction1)  # hidden layers for action stream
+        action5 = Dense(32, activation='relu')(action4)
         # action2 = Dense(32, activation='linear')(A)
         # action3 = Dense(32, activation='relu')(action2)
         # action4 = Dense(32, activation='relu')(action3)
@@ -78,7 +81,8 @@ class Critic:
         t1 = concatenate([action5, state5])         # concatenate state and action stream
         b3 = BatchNormalization()(t1)               # batch normalization
         # t2 = Dense(64, activation='relu')(b3)           # 350   512    128  254 32
-        t2 = Dense(6*self.state_size, activation='relu')(b3)           # 350   512    128  254 32
+        #t2 = Dense(6*self.state_size, activation='relu')(b3)           # 350   512    128  254 32
+        t2 = Dense(64, activation='relu')(b3)
 
         # t2 = Dense(64, activation='relu')(t1)
         # t3 = Dense(300, activation='relu', kernel_initializer=RandomUniform())(t2)
@@ -90,6 +94,8 @@ class Critic:
         V = Dense(self.action_size, activation='linear', kernel_initializer=RandomUniform(seed=1))(b4)  # output layer
         model = Model(input=[S, A], output=V)       # create network model
         model.compile(loss='mse', optimizer=Adam(lr=self.learning_rate))
+        # sgd = optimizers.SGD(lr=self.learning_rate)
+        # model.compile(loss='mse', optimizer=sgd)
         return model, A, S
 
     def transfer_to_critic_model(self):     # copy critic network to target critic network
@@ -113,7 +119,7 @@ class Critic:
         #return self.action_grads([np.asarray(states), np.asarray(actions)])
 
     def save(self, path):
-        self.model.save_weights(path + '_weights_critic_h5')
+        self.model.save_weights(path + '_weights_critic.h5')
 
     def load_weights(self, path):
         self.model.load_weights(path)
